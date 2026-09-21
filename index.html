@@ -1,0 +1,212 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PAMIGO - تطبيق المنصورة للعروض والطلبات</title>
+    <!-- CSS الخارجية (FontAwesome + Leaflet Maps) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- ملف التنسيقات الخاص بنا -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- الهيدر والتنقل العلوي -->
+    <header class="app-header">
+        <div class="logo">
+            <i class="fa-solid fa-bag-shopping"></i> PAMIGO
+        </div>
+        <div class="user-role-toggle">
+            <button id="roleCustomer" class="role-btn active" onclick="setRole('customer')">عميل</button>
+            <button id="roleMerchant" class="role-btn" onclick="setRole('merchant')">تاجر</button>
+        </div>
+    </header>
+
+    <!-- شريط التبويبات -->
+    <nav class="tab-bar">
+        <button class="tab-btn active" data-tab="home"><i class="fa-solid fa-house"></i> الرئيسية</button>
+        <button class="tab-btn" data-tab="deals"><i class="fa-solid fa-tags"></i> العروض</button>
+        <button class="tab-btn" data-tab="requests"><i class="fa-solid fa-pen-to-square"></i> الطلبات</button>
+        <button class="tab-btn" id="tabDashboard" data-tab="dashboard" style="display:none;"><i class="fa-solid fa-chart-line"></i> لوحة التحكم</button>
+        <button class="tab-btn" id="tabReports" data-tab="reports" style="display:none;"><i class="fa-solid fa-file-invoice"></i> تقارير</button>
+        <button class="tab-btn" id="tabAnalytics" data-tab="analytics" style="display:none;"><i class="fa-solid fa-chart-pie"></i> تحليلات</button>
+        <button class="tab-btn" id="tabAdmin" data-tab="admin" style="display:none;"><i class="fa-solid fa-user-shield"></i> الإدارة</button>
+        <button class="tab-btn" id="tabAccount" data-tab="account" style="display:none;"><i class="fa-solid fa-user"></i> حسابي</button>
+    </nav>
+
+    <main class="container">
+        <!-- 1. صفحة الرئيسية -->
+        <section id="tab-home" class="tab-content active">
+            <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="searchInput" placeholder="ابحث عن تاجر، عرض، أو منتج في المنصورة..." oninput="filterDeals()">
+            </div>
+
+            <!-- النطاق الجغرافي -->
+            <div class="card radius-card">
+                <label><i class="fa-solid fa-location-dot"></i> نطاق البحث الجغرافي: <span id="radiusValue">5</span> كم</label>
+                <input type="range" id="radiusSlider" min="1" max="20" value="5">
+            </div>
+
+            <!-- تصنيفات الصفحة الرئيسية -->
+            <div class="categories-scroll" id="homeCategories">
+                <button class="category-chip active" data-home-cat="all">الكل</button>
+                <button class="category-chip" data-home-cat="مطاعم">مطاعم</button>
+                <button class="category-chip" data-home-cat="ملابس">ملابس</button>
+                <button class="category-chip" data-home-cat="إلكترونيات">إلكترونيات</button>
+                <button class="category-chip" data-home-cat="سوبرماركت">سوبرماركت</button>
+                <button class="category-chip" data-home-cat="صيدليات">صيدليات</button>
+            </div>
+
+            <div id="subCategoriesContainer" class="sub-categories-scroll"></div>
+
+            <!-- الخريطة -->
+            <div id="map" class="map-container"></div>
+
+            <!-- قائمة التجار القريبين -->
+            <h3 class="section-title"><i class="fa-solid fa-store"></i> التجار القريبون منك</h3>
+            <div id="dealsList" class="cards-grid"></div>
+        </section>
+
+        <!-- 2. صفحة العروض والخصومات -->
+        <section id="tab-deals" class="tab-content">
+            <h3 class="section-title"><i class="fa-solid fa-fire"></i> أحدث العروض والخصومات</h3>
+            <div id="allOffersList" class="cards-grid"></div>
+        </section>
+
+        <!-- 3. صفحة الطلبات الخاصة -->
+        <section id="tab-requests" class="tab-content">
+            <div class="card">
+                <h3><i class="fa-solid fa-paper-plane"></i> أرسل طلب خاص للتجار</h3>
+                <p class="subtitle">مش لاقي منتج معين؟ اكتب طلبك وسيرسل للتجار القريبين منك في المنصورة</p>
+
+                <div class="form-group">
+                    <label>تصنيف الطلب</label>
+                    <select id="reqCategory">
+                        <option value="ملابس">ملابس</option>
+                        <option value="إلكترونيات">إلكترونيات</option>
+                        <option value="مطاعم">مطاعم</option>
+                        <option value="قطع غيار">قطع غيار</option>
+                        <option value="أخرى">أخرى</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>تفاصيل الطلب</label>
+                    <textarea id="reqText" placeholder="اكتب تفاصيل المنتج أو الخدمة التي تبحث عنها..."></textarea>
+                </div>
+
+                <button class="btn btn-primary" onclick="submitSpecialRequest()"><i class="fa-solid fa-paper-plane"></i> إرسال الطلب</button>
+            </div>
+
+            <!-- فلترة الطلبات -->
+            <div class="categories-scroll" id="requestFilters">
+                <button class="category-chip active" data-filter="all">كل طلباتي</button>
+                <button class="category-chip" data-filter="pending">قيد الانتظار</button>
+                <button class="category-chip" data-filter="responded">تم الرد</button>
+            </div>
+
+            <div id="requestsList"></div>
+        </section>
+
+        <!-- 4. لوحة تحكم التاجر -->
+        <section id="tab-dashboard" class="tab-content">
+            <div class="dashboard-stats">
+                <div class="stat-card">
+                    <i class="fa-solid fa-users"></i>
+                    <h4 id="dashCust">0</h4>
+                    <p>عملاء الكاش باك</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fa-solid fa-money-bill-wave"></i>
+                    <h4 id="dashSales">0 ج</h4>
+                    <p>إجمالي المبيعات</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fa-solid fa-tags"></i>
+                    <h4 id="dashOffers">0</h4>
+                    <p>العروض النشطة</p>
+                </div>
+            </div>
+
+            <!-- ملخص الكاش باك للتاجر -->
+            <div class="card">
+                <h3><i class="fa-solid fa-wallet"></i> ملخص الكاش باك</h3>
+                <div class="summary-grid">
+                    <div><span>الكاش باك الممنوح:</span> <strong id="dashCashbackGiven">0 ج</strong></div>
+                    <div><span>الكاش باك المسترد:</span> <strong id="dashCashbackSpent">0 ج</strong></div>
+                    <div><span>الرصيد المتبقي للعملاء:</span> <strong id="dashCashbackRemaining">0 ج</strong></div>
+                    <div><span>صافي المبيعات:</span> <strong id="dashNetSales">0 ج</strong></div>
+                </div>
+            </div>
+
+            <!-- إضافة فاتورة كاش باك -->
+            <div class="card">
+                <h3><i class="fa-solid fa-receipt"></i> تسجيل فاتورة عميل (إضافة كاش باك)</h3>
+                <div class="form-group">
+                    <label>رقم هاتف العميل</label>
+                    <input type="tel" id="invPhone" placeholder="01xxxxxxxxx">
+                </div>
+                <div class="form-group">
+                    <label>مبلغ الفاتورة (جنيه)</label>
+                    <input type="number" id="invAmount" placeholder="100">
+                </div>
+                <button class="btn btn-success" onclick="addInvoice()"><i class="fa-solid fa-plus"></i> إضافة الفاتورة والتكشيب</button>
+            </div>
+
+            <!-- استرداد كاش باك -->
+            <div class="card">
+                <h3><i class="fa-solid fa-hand-holding-dollar"></i> استرداد كاش باك لعميل</h3>
+                <div class="form-group">
+                    <label>رقم هاتف العميل</label>
+                    <input type="tel" id="redeemPhone" placeholder="01xxxxxxxxx">
+                </div>
+                <div class="form-group">
+                    <label>المبلغ المراد خصمه/استرداده</label>
+                    <input type="number" id="redeemAmount" placeholder="50">
+                </div>
+                <div class="form-group">
+                    <label>البنكود (للتأكيد)</label>
+                    <input type="password" id="redeemBankCode" placeholder="••••">
+                </div>
+                <button class="btn btn-warning" onclick="redeemCashback()"><i class="fa-solid fa-check"></i> تأكيد الاسترداد</button>
+            </div>
+        </section>
+
+        <!-- 5. صفحة الحساب وتغيير الهوية -->
+        <section id="tab-account" class="tab-content">
+            <div class="card">
+                <h3><i class="fa-solid fa-user-gear"></i> تسجيل الدخول / تبديل الحساب</h3>
+                
+                <div class="form-group">
+                    <label>رقم الهاتف</label>
+                    <input type="tel" id="loginPhone" placeholder="01xxxxxxxxx">
+                </div>
+
+                <div class="form-group" id="bankCodeGroup" style="display:none;">
+                    <label>البنكود الخاص بالتاجر (BankCode)</label>
+                    <input type="password" id="loginBankCode" placeholder="••••">
+                </div>
+
+                <button class="btn btn-primary" onclick="handleLogin()"><i class="fa-solid fa-right-to-bracket"></i> دخول</button>
+                <p id="loginResult" style="margin-top: 10px; font-weight: bold;"></p>
+            </div>
+
+            <div class="card">
+                <h3>بيانات الحساب الحالي</h3>
+                <p>الاسم: <strong id="accName">زائر</strong></p>
+                <p>الهاتف: <strong id="accPhone">-</strong></p>
+                <p>إجمالي رصيد الكاش باك: <strong id="cashbackBalance" style="color:#10b981;">0 ج</strong></p>
+                <p>عدد الفواتير السابقة: <strong id="invoiceCount">0</strong></p>
+                <button class="btn btn-danger" onclick="handleLogout()" style="margin-top:15px;"><i class="fa-solid fa-arrow-right-from-bracket"></i> خروج</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- مكتبات الجافاسكريبت المساعدة -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- ملف الجافاسكريبت الخاص بنا -->
+    <script src="app.js"></script>
+</body>
+</html>
